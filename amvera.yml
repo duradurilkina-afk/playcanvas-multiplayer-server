@@ -3,5 +3,11 @@ meta:
   toolchain:
     name: npm
     version: 18
+
+build:
+  requirements:
+    - package.json
+
 run:
-  scriptName: server.js
+  command: node server.js
+  port: 80
