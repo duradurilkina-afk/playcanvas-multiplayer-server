@@ -1,77 +1,87 @@
 const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
+
 const app = express();
-const http = require('http').createServer(app);
-const io = require('socket.io')(http, {
+const server = http.createServer(app);
+
+// ИСПРАВЛЕНИЕ CORS: Разрешаем PlayCanvas подключаться к нашему серверу
+const io = new Server(server, {
     cors: {
-        origin: "*", // Разрешаем подключение с любых доменов (критично для PlayCanvas)
+        origin: "*", // Разрешает запросы со всех доменов
         methods: ["GET", "POST"]
     }
 });
 
-// Amvera автоматически выдает порт через переменную окружения, либо используем 3000 локально
-const PORT = process.env.PORT || 3000;
-
-// Список всех активных игроков на сервере
+// Хранилище игроков
 const players = {};
+
+// Массив случайных цветов (RGB)
+const randomColors = [
+    [1, 0, 0],   // Красный
+    [0, 1, 0],   // Зеленый
+    [0, 0, 1],   // Синий
+    [1, 1, 0],   // Желтый
+    [1, 0, 1],   // Фиолетовый
+    [0, 1, 1]    // Голубой
+];
 
 io.on('connection', (socket) => {
     console.log(`Игрок подключился: ${socket.id}`);
 
-    // 1. Создаем нового игрока в базе данных сервера
+    // Выбираем случайный цвет для нового игрока
+    const randomColor = randomColors[Math.floor(Math.random() * randomColors.length)];
+
+    // Создаем данные нового игрока
     players[socket.id] = {
         id: socket.id,
         x: 0,
         y: 2,
         z: 0,
-        color: [1, 1, 1] // Цвет по умолчанию (белый)
+        color: randomColor
     };
 
-    // Отправляем новому игроку список всех, кто уже зашел в игру до него
+    // 1. Отправляем новому игроку список всех, кто уже на сервере
     socket.emit('currentPlayers', players);
 
-    // Сообщаем всем остальным игрокам, что подключился новичок
+    // 2. Всем остальным сообщаем, что зашел новый игрок
     socket.broadcast.emit('newPlayer', players[socket.id]);
 
-    // 2. СИНХРОНИЗАЦИЯ ДВИЖЕНИЯ
+    // Обработка движения
     socket.on('move', (movementData) => {
         if (players[socket.id]) {
             players[socket.id].x = movementData.x;
             players[socket.id].y = movementData.y;
             players[socket.id].z = movementData.z;
 
-            // Рассылаем новые координаты этого игрока всем остальным
+            // Рассылаем координаты всем остальным
             socket.broadcast.emit('playerMoved', players[socket.id]);
         }
     });
 
-    // 3. СИНХРОНИЗАЦИЯ ЦВЕТА (Новая механика по ПКМ)
-    socket.on('changeColor', (colorArray) => {
+    // Обработка смены цвета (при клике ПКМ)
+    socket.on('changeColor', (colorData) => {
         if (players[socket.id]) {
-            // Сохраняем актуальный цвет игрока на сервере 
-            // (чтобы новые подключившиеся игроки сразу видели его цветным, а не белым)
-            players[socket.id].color = colorArray;
-
-            // Пересылаем этот цвет всем остальным экранам
-            socket.broadcast.emit('playerColorChanged', {
+            players[socket.id].color = colorData;
+            // Отправляем обновленный цвет ВСЕМ игрокам
+            io.emit('playerColorChanged', {
                 id: socket.id,
-                color: colorArray
+                color: colorData
             });
         }
     });
 
-    // 4. ОБРАБОТКА ОТКЛЮЧЕНИЯ ИГРОКА
+    // Отключение игрока
     socket.on('disconnect', () => {
         console.log(`Игрок отключился: ${socket.id}`);
-
-        // Удаляем его из памяти сервера
         delete players[socket.id];
-
-        // Говорим всем убрать эту капсулу с экрана
+        // Сообщаем всем, что игрок вышел
         io.emit('playerDisconnected', socket.id);
     });
 });
 
-// Запуск сервера
-http.listen(PORT, () => {
+// ИСПРАВЛЕНИЕ ПОРТА: Переключаемся на порт 80 или динамический порт Amvera
+const PORT = process.env.PORT || 80;
+server.listen(PORT, () => {
     console.log(`Сервер успешно запущен на порту ${PORT}`);
 });
