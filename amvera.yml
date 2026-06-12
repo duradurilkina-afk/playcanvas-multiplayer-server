@@ -4,10 +4,6 @@ meta:
     name: npm
     version: 18
 
-build:
-  requirements:
-    - package.json
-
 run:
   command: node server.js
-  port: 80
+    port: 80
