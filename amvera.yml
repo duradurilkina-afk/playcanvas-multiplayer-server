@@ -6,4 +6,4 @@ meta:
 
 run:
   command: node server.js
-    port: 80
+  port: 80
