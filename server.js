@@ -27,7 +27,18 @@ const randomColors = [
 ];
 
 io.on('connection', (socket) => {
-    console.log(`Игрок подключился: ${socket.id}`);
+    console.log('Игрок подключился:', socket.id);
+
+    // 1. Оповещаем ВСЕХ ОСТАЛЬНЫХ, что пришел новый игрок
+    socket.broadcast.emit('playerJoined', {
+        id: socket.id,
+        position: { x: 0, y: 0, z: 0 } // начальная позиция
+    });
+
+    // 2. (Опционально) Оповещаем нового игрока о тех, кто УЖЕ в игре
+    // Это нужно, чтобы он видел тех, кто зашел раньше него
+});
+
 
     // Выбираем случайный цвет для нового игрока
     const randomColor = randomColors[Math.floor(Math.random() * randomColors.length)];
