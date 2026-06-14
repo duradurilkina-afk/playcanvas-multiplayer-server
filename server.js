@@ -10,11 +10,10 @@ const PORT = process.env.PORT || 80;
 io.on('connection', (socket) => {
     console.log('Игрок подключился. ID:', socket.id);
 
-    // ОПОВЕЩАЕМ ВСЕХ ОСТАЛЬНЫХ о новичке
-    socket.broadcast.emit('playerJoined', {
-        id: socket.id,
-        position: { x: 0, y: 0, z: 0 }
-    });
+    // ОПОВЕЩАЕМ ВСЕХ о новичке
+    const data = { id: socket.id, position: { x: 0, y: 0, z: 0 } };
+    socket.broadcast.emit('playerJoined', data);
+    console.log('Сервер отправил broadcast playerJoined для:', socket.id);
 
     socket.on('disconnect', () => {
         console.log('Игрок отключился:', socket.id);
