@@ -12,24 +12,31 @@ let players = {};
 io.on('connection', (socket) => {
     console.log('Подключение:', socket.id);
 
-    players[socket.id] = { position: { x: 0, y: 0, z: 0 } };
+    // Храним не только позицию, но и поворот
+    players[socket.id] = {
+        position: { x: 0, y: 0, z: 0 },
+        rotation: { x: 0, y: 0, z: 0 },
+        speed: 0
+    };
 
-    // Отправляем новичку список всех уже играющих
     socket.emit('currentPlayers', players);
 
-    // Оповещаем остальных о новом игроке
-    socket.broadcast.emit('newPlayer', { id: socket.id, position: { x: 0, y: 0, z: 0 } });
+    socket.broadcast.emit('newPlayer', {
+        id: socket.id,
+        position: { x: 0, y: 0, z: 0 },
+        rotation: { x: 0, y: 0, z: 0 }
+    });
 
-    // --- ВОТ СЮДА ВСТАВЛЯЕМ ОБРАБОТЧИК ДВИЖЕНИЯ ---
     socket.on('playerMoved', (data) => {
         if (players[socket.id]) {
             players[socket.id].position = data.position;
+            players[socket.id].rotation = data.rotation;
             data.id = socket.id;
-            // Рассылаем всем остальным новые координаты
+
+            // Рассылаем данные (позиция, поворот, скорость) всем остальным
             socket.broadcast.emit('playerMoved', data);
         }
     });
-    // ----------------------------------------------
 
     socket.on('disconnect', () => {
         console.log('Отключился:', socket.id);
