@@ -79,6 +79,8 @@ io.on('connection', (socket) => {
             return;
         }
 
+        console.log('SERVER RECEIVED MOVEMENT:', socket.id, data.position);
+
         players[socket.id] = makePlayerState(data);
 
         socket.broadcast.emit('playerMoved', {
