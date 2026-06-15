@@ -5,14 +5,12 @@ const io = require('socket.io')(http, {
     cors: { origin: "*", methods: ["GET", "POST"] },
     transports: ['websocket']
 });
-
 const PORT = process.env.PORT || 80;
 let players = {};
 
 io.on('connection', (socket) => {
     console.log('Подключился: ', socket.id);
 
-    // Создаем пустую запись, ждем координат инициализации
     players[socket.id] = null;
 
     socket.on('initPosition', (data) => {
@@ -21,9 +19,7 @@ io.on('connection', (socket) => {
             rotation: data.rotation,
             speed: 0
         };
-        // Отдаем вошедшему список текущих игроков
         socket.emit('currentPlayers', players);
-        // Оповещаем остальных с правильными координатами
         socket.broadcast.emit('newPlayer', {
             id: socket.id,
             position: data.position,
@@ -32,15 +28,27 @@ io.on('connection', (socket) => {
     });
 
     socket.on('playerMoved', (data) => {
-        if (players[socket.id]) {
+        // Защита: если игрок почему-то еще не инициализирован, создаем ему структуру
+        if (!players[socket.id]) {
+            players[socket.id] = { position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 }, speed: 0 };
+        }
+
+        if (data && data.position) {
             players[socket.id].position = data.position;
             players[socket.id].rotation = data.rotation;
-            data.id = socket.id;
-            socket.broadcast.emit('playerMoved', data);
+
+            // Явно собираем чистый объект для рассылки, чтобы избежать мутаций данных
+            socket.broadcast.emit('playerMoved', {
+                id: socket.id,
+                position: data.position,
+                rotation: data.rotation,
+                speed: data.speed || 0
+            });
         }
     });
 
     socket.on('disconnect', () => {
+        console.log('Отключился: ', socket.id);
         delete players[socket.id];
         socket.broadcast.emit('playerLeft', { id: socket.id });
     });
