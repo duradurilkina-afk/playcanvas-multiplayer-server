@@ -6,21 +6,21 @@ const io = require('socket.io')(http, {
 });
 
 const PORT = process.env.PORT || 80;
-
 let players = {};
 
 io.on('connection', (socket) => {
-    console.log('Подключение:', socket.id);
+    console.log('=== СЕРВЕР: Подключился игрок с ID:', socket.id);
 
-    // Храним не только позицию, но и поворот
     players[socket.id] = {
         position: { x: 0, y: 0, z: 0 },
         rotation: { x: 0, y: 0, z: 0 },
         speed: 0
     };
 
+    // Отправляем вошедшему список игроков
     socket.emit('currentPlayers', players);
 
+    // Оповещаем остальных
     socket.broadcast.emit('newPlayer', {
         id: socket.id,
         position: { x: 0, y: 0, z: 0 },
@@ -33,18 +33,18 @@ io.on('connection', (socket) => {
             players[socket.id].rotation = data.rotation;
             data.id = socket.id;
 
-            // Рассылаем данные (позиция, поворот, скорость) всем остальным
+            // Транслируем движение остальным
             socket.broadcast.emit('playerMoved', data);
         }
     });
 
     socket.on('disconnect', () => {
-        console.log('Отключился:', socket.id);
+        console.log('=== СЕРВЕР: Отключился игрок с ID:', socket.id);
         delete players[socket.id];
         socket.broadcast.emit('playerLeft', { id: socket.id });
     });
 });
 
 http.listen(PORT, () => {
-    console.log('Сервер запущен на порту ' + PORT);
+    console.log('=== СЕРВЕР ЗАПУЩЕН НА ПОРТУ ' + PORT + ' ===');
 });
