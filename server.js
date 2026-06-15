@@ -1,53 +1,85 @@
 const express = require('express');
-const app = express();
-const http = require('http').createServer(app);
+const http = require('http');
 const { Server } = require('socket.io');
 
-const io = new Server(http, {
-    cors: { origin: '*', methods: ['GET', 'POST'] },
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+    cors: {
+        origin: '*',
+        methods: ['GET', 'POST']
+    },
     transports: ['websocket', 'polling']
 });
 
 const PORT = process.env.PORT || 80;
 const players = {};
 
-app.get('/', (req, res) => {
-    res.send('PlayCanvas multiplayer server is running');
+function isNumber(value) {
+    return typeof value === 'number' && Number.isFinite(value);
+}
+
+function validVector(vector) {
+    return vector &&
+        isNumber(vector.x) &&
+        isNumber(vector.y) &&
+        isNumber(vector.z);
+}
+
+function makePlayerState(data) {
+    return {
+        position: {
+            x: data.position.x,
+            y: data.position.y,
+            z: data.position.z
+        },
+        rotation: validVector(data.rotation) ? {
+            x: data.rotation.x,
+            y: data.rotation.y,
+            z: data.rotation.z
+        } : {
+            x: 0,
+            y: 0,
+            z: 0
+        },
+        speed: isNumber(data.speed) ? data.speed : 0
+    };
+}
+
+app.get('/', (request, response) => {
+    response.json({
+        status: 'ok',
+        players: Object.keys(players).length
+    });
 });
 
 io.on('connection', (socket) => {
-    console.log('Player connected:', socket.id);
-
-    players[socket.id] = {
-        position: { x: 0, y: 0, z: 0 },
-        rotation: { x: 0, y: 0, z: 0 },
-        speed: 0
-    };
+    console.log('CONNECTED:', socket.id);
 
     socket.on('initPosition', (data) => {
-        if (!data || !data.position) return;
+        if (!data || !validVector(data.position)) {
+            console.warn('INVALID INIT:', socket.id, data);
+            return;
+        }
 
-        players[socket.id] = {
-            position: data.position,
-            rotation: data.rotation || { x: 0, y: 0, z: 0 },
-            speed: 0
-        };
+        players[socket.id] = makePlayerState(data);
 
         socket.emit('currentPlayers', players);
         socket.broadcast.emit('newPlayer', {
             id: socket.id,
             ...players[socket.id]
         });
+
+        console.log('INITIALIZED:', socket.id, players[socket.id].position);
     });
 
     socket.on('playerMoved', (data) => {
-        if (!data || !data.position) return;
+        if (!data || !validVector(data.position)) {
+            console.warn('INVALID MOVE:', socket.id, data);
+            return;
+        }
 
-        players[socket.id] = {
-            position: data.position,
-            rotation: data.rotation || players[socket.id].rotation,
-            speed: Number.isFinite(data.speed) ? data.speed : 0
-        };
+        players[socket.id] = makePlayerState(data);
 
         socket.broadcast.emit('playerMoved', {
             id: socket.id,
@@ -55,13 +87,13 @@ io.on('connection', (socket) => {
         });
     });
 
-    socket.on('disconnect', () => {
-        console.log('Player disconnected:', socket.id);
+    socket.on('disconnect', (reason) => {
+        console.log('DISCONNECTED:', socket.id, reason);
         delete players[socket.id];
         socket.broadcast.emit('playerLeft', socket.id);
     });
 });
 
-http.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
+server.listen(PORT, '0.0.0.0', () => {
+    console.log('SERVER STARTED ON PORT:', PORT);
 });
