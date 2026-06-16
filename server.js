@@ -37,6 +37,10 @@ function copyVector(vector) {
 
 function makePlayerState(data) {
     return {
+        clientId: typeof data.clientId === 'string' ? data.clientId : null,
+        nickname: typeof data.nickname === 'string' && data.nickname.trim() ?
+            data.nickname.trim().substring(0, 18) :
+            'Player',
         position: copyVector(data.position),
         rotation: validVector(data.rotation) ? copyVector(data.rotation) : {
             x: 0,
@@ -167,6 +171,8 @@ io.on('connection', (socket) => {
 
         io.emit('chatMessage', {
             id: socket.id,
+            clientId: players[socket.id] ? players[socket.id].clientId : null,
+            nickname: players[socket.id] ? players[socket.id].nickname : 'Player',
             text: text,
             time: Date.now()
         });
