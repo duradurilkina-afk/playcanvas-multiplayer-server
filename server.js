@@ -140,6 +140,22 @@ io.on('connection', (socket) => {
         socket.broadcast.emit('ballHeld', balls[data.id]);
     });
 
+    socket.on('ballCharge', (data) => {
+        if (!validBallPacket(data)) return;
+
+        if (!balls[data.id] || balls[data.id].ownerId !== socket.id) return;
+
+        socket.broadcast.emit('ballCharge', {
+            id: String(data.id),
+            ownerId: socket.id,
+            active: data.active !== false,
+            charge: isNumber(data.charge) ?
+                Math.max(0, Math.min(1, data.charge)) :
+                0,
+            position: copyVector(data.position)
+        });
+    });
+
     socket.on('ballThrown', (data) => {
         if (!validBallPacket(data)) {
             console.warn('INVALID BALL THROW:', socket.id, data);
