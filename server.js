@@ -159,6 +159,21 @@ io.on('connection', (socket) => {
         }
     });
 
+    socket.on('chatMessage', (data) => {
+        if (!data || typeof data.text !== 'string') return;
+
+        const text = data.text.trim();
+        if (!text || text.length > 120) return;
+
+        io.emit('chatMessage', {
+            id: socket.id,
+            text: text,
+            time: Date.now()
+        });
+
+        console.log('CHAT:', socket.id, text);
+    });
+
     socket.on('disconnect', (reason) => {
         console.log('DISCONNECTED:', socket.id, reason);
 
