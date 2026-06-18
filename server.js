@@ -17,11 +17,12 @@ const PORT = process.env.PORT || 80;
 const MAX_HP = 100;
 const LEFT_HOOK_DAMAGE = 15;
 const RIGHT_HOOK_DAMAGE = 25;
-const ATTACK_RANGE = 2.15;
-const ATTACK_HALF_ANGLE_DEG = 95;
+const ATTACK_RANGE = 2.45;
+const ATTACK_HALF_ANGLE_DEG = 180;
 const ATTACK_COOLDOWN_MS = 500;
-const HIT_HEIGHT_TOLERANCE = 2.2;
-const TARGET_HIT_RADIUS = 0.45;
+const HIT_HEIGHT_TOLERANCE = 3.0;
+const TARGET_HIT_RADIUS = 0.55;
+const USE_ATTACK_CONE = false;
 
 const players = {};
 
@@ -185,7 +186,7 @@ function findAttackHits(attacker, forward) {
 
         const dot = forward.x * toTarget.x + forward.z * toTarget.z;
 
-        if (dot < minDot) {
+        if (USE_ATTACK_CONE && dot < minDot) {
             misses.push({
                 id: target.id,
                 reason: 'angle',
@@ -313,6 +314,7 @@ io.on('connection', (socket) => {
             range: ATTACK_RANGE,
             targetRadius: TARGET_HIT_RADIUS,
             angle: ATTACK_HALF_ANGLE_DEG,
+            useAttackCone: USE_ATTACK_CONE,
             attackerPosition: player.position,
             forward: safeForward,
             misses: hitResult.misses.map((miss) => ({
