@@ -15,11 +15,13 @@ const io = new Server(server, {
 const PORT = process.env.PORT || 80;
 
 const MAX_HP = 100;
-const ATTACK_DAMAGE = 15;
-const ATTACK_RANGE = 1.65;
-const ATTACK_HALF_ANGLE_DEG = 70;
-const ATTACK_COOLDOWN_MS = 450;
-const HIT_HEIGHT_TOLERANCE = 1.8;
+const LEFT_HOOK_DAMAGE = 15;
+const RIGHT_HOOK_DAMAGE = 25;
+const ATTACK_RANGE = 2.15;
+const ATTACK_HALF_ANGLE_DEG = 95;
+const ATTACK_COOLDOWN_MS = 500;
+const HIT_HEIGHT_TOLERANCE = 2.2;
+const TARGET_HIT_RADIUS = 0.45;
 
 const players = {};
 
@@ -119,9 +121,19 @@ function validAttackState(state) {
     return state === 8 || state === 9;
 }
 
+function getAttackDamage(state) {
+    if (state === 9) {
+        return RIGHT_HOOK_DAMAGE;
+    }
+
+    return LEFT_HOOK_DAMAGE;
+}
+
 function findAttackHits(attacker, forward) {
     const hits = [];
+    const misses = [];
     const minDot = Math.cos(ATTACK_HALF_ANGLE_DEG * Math.PI / 180);
+    const effectiveRange = ATTACK_RANGE + TARGET_HIT_RADIUS;
 
     Object.keys(players).forEach((id) => {
         if (id === attacker.id) {
@@ -139,7 +151,30 @@ function findAttackHits(attacker, forward) {
         const dy = Math.abs(target.position.y - attacker.position.y);
         const flatDistance = Math.sqrt(dx * dx + dz * dz);
 
-        if (flatDistance > ATTACK_RANGE || dy > HIT_HEIGHT_TOLERANCE || flatDistance <= 0.001) {
+        if (dy > HIT_HEIGHT_TOLERANCE) {
+            misses.push({
+                id: target.id,
+                reason: 'height',
+                distance: flatDistance,
+                height: dy,
+                dot: 0
+            });
+            return;
+        }
+
+        if (flatDistance > effectiveRange) {
+            misses.push({
+                id: target.id,
+                reason: 'range',
+                distance: flatDistance,
+                height: dy,
+                dot: 0
+            });
+            return;
+        }
+
+        if (flatDistance <= 0.001) {
+            hits.push(target);
             return;
         }
 
@@ -151,13 +186,23 @@ function findAttackHits(attacker, forward) {
         const dot = forward.x * toTarget.x + forward.z * toTarget.z;
 
         if (dot < minDot) {
+            misses.push({
+                id: target.id,
+                reason: 'angle',
+                distance: flatDistance,
+                height: dy,
+                dot: dot
+            });
             return;
         }
 
         hits.push(target);
     });
 
-    return hits;
+    return {
+        hits,
+        misses
+    };
 }
 
 app.get('/', (request, response) => {
@@ -235,6 +280,7 @@ io.on('connection', (socket) => {
 
         player.lastAttackAt = now;
         player.animState = attackState;
+        const attackDamage = getAttackDamage(attackState);
 
         if (data && validVector(data.position)) {
             player.position = copyVector(data.position, player.position);
@@ -249,7 +295,8 @@ io.on('connection', (socket) => {
             getForwardFromYaw(player.modelRotation.y);
 
         const safeForward = forward || getForwardFromYaw(player.modelRotation.y);
-        const hitPlayers = findAttackHits(player, safeForward);
+        const hitResult = findAttackHits(player, safeForward);
+        const hitPlayers = hitResult.hits;
 
         io.emit('attackStarted', {
             id: socket.id,
@@ -259,13 +306,49 @@ io.on('connection', (socket) => {
             time: now
         });
 
+        socket.emit('attackDebug', {
+            attackState,
+            damage: attackDamage,
+            hitCount: hitPlayers.length,
+            range: ATTACK_RANGE,
+            targetRadius: TARGET_HIT_RADIUS,
+            angle: ATTACK_HALF_ANGLE_DEG,
+            attackerPosition: player.position,
+            forward: safeForward,
+            misses: hitResult.misses.map((miss) => ({
+                id: miss.id,
+                reason: miss.reason,
+                distance: Number(miss.distance.toFixed(3)),
+                height: Number(miss.height.toFixed(3)),
+                dot: Number(miss.dot.toFixed(3))
+            }))
+        });
+
+        console.log('ATTACK:', socket.id, 'hits:', hitPlayers.length, 'misses:', hitResult.misses.length);
+
+        hitResult.misses.forEach((miss) => {
+            console.log(
+                'MISS:',
+                socket.id,
+                '->',
+                miss.id,
+                miss.reason,
+                'distance:',
+                miss.distance.toFixed(2),
+                'height:',
+                miss.height.toFixed(2),
+                'dot:',
+                miss.dot.toFixed(2)
+            );
+        });
+
         hitPlayers.forEach((target) => {
-            target.hp = clamp(target.hp - ATTACK_DAMAGE, 0, target.maxHp);
+            target.hp = clamp(target.hp - attackDamage, 0, target.maxHp);
 
             io.emit('playerDamaged', {
                 attackerId: socket.id,
                 targetId: target.id,
-                damage: ATTACK_DAMAGE,
+                damage: attackDamage,
                 hp: target.hp,
                 maxHp: target.maxHp
             });
