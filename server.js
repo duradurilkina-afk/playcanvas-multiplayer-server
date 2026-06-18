@@ -17,12 +17,13 @@ const PORT = process.env.PORT || 80;
 const MAX_HP = 100;
 const LEFT_HOOK_DAMAGE = 15;
 const RIGHT_HOOK_DAMAGE = 25;
-const ATTACK_RANGE = 1.15;
+const ATTACK_RANGE = 0.95;
 const ATTACK_HALF_ANGLE_DEG = 180;
 const ATTACK_COOLDOWN_MS = 500;
 const HIT_HEIGHT_TOLERANCE = 1.8;
-const TARGET_HIT_RADIUS = 0.35;
+const TARGET_HIT_RADIUS = 0.25;
 const USE_ATTACK_CONE = false;
+const CLIENT_TARGET_VALIDATION_RANGE = 2.1;
 
 const players = {};
 
@@ -130,14 +131,20 @@ function getAttackDamage(state) {
     return LEFT_HOOK_DAMAGE;
 }
 
-function findAttackHits(attacker, forward) {
+function findAttackHits(attacker, forward, requestedTargetIds) {
     const hits = [];
     const misses = [];
     const minDot = Math.cos(ATTACK_HALF_ANGLE_DEG * Math.PI / 180);
     const effectiveRange = ATTACK_RANGE + TARGET_HIT_RADIUS;
+    const hasRequestedTargets = Array.isArray(requestedTargetIds);
+    const requestedTargetSet = new Set(hasRequestedTargets ? requestedTargetIds : []);
 
     Object.keys(players).forEach((id) => {
         if (id === attacker.id) {
+            return;
+        }
+
+        if (hasRequestedTargets && !requestedTargetSet.has(id)) {
             return;
         }
 
@@ -163,7 +170,9 @@ function findAttackHits(attacker, forward) {
             return;
         }
 
-        if (flatDistance > effectiveRange) {
+        const maxDistance = hasRequestedTargets ? CLIENT_TARGET_VALIDATION_RANGE : effectiveRange;
+
+        if (flatDistance > maxDistance) {
             misses.push({
                 id: target.id,
                 reason: 'range',
@@ -296,7 +305,11 @@ io.on('connection', (socket) => {
             getForwardFromYaw(player.modelRotation.y);
 
         const safeForward = forward || getForwardFromYaw(player.modelRotation.y);
-        const hitResult = findAttackHits(player, safeForward);
+        const requestedTargetIds = Array.isArray(data && data.targetIds) ?
+            data.targetIds.filter((id) => typeof id === 'string').slice(0, 8) :
+            null;
+
+        const hitResult = findAttackHits(player, safeForward, requestedTargetIds);
         const hitPlayers = hitResult.hits;
 
         io.emit('attackStarted', {
