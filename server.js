@@ -17,11 +17,11 @@ const PORT = process.env.PORT || 80;
 const MAX_HP = 100;
 const LEFT_HOOK_DAMAGE = 15;
 const RIGHT_HOOK_DAMAGE = 25;
-const ATTACK_RANGE = 2.45;
+const ATTACK_RANGE = 1.15;
 const ATTACK_HALF_ANGLE_DEG = 180;
 const ATTACK_COOLDOWN_MS = 500;
-const HIT_HEIGHT_TOLERANCE = 3.0;
-const TARGET_HIT_RADIUS = 0.55;
+const HIT_HEIGHT_TOLERANCE = 1.8;
+const TARGET_HIT_RADIUS = 0.35;
 const USE_ATTACK_CONE = false;
 
 const players = {};
